@@ -6,6 +6,14 @@ datasources:
     access: proxy
     url: http://loki:3100
     isDefault: true
+    jsonData:
+      # trace_id ในทุกบรรทัดกลายเป็นลิงก์ กดแล้วเปิด log ทุก service ของ trace นั้น
+      derivedFields:
+        - name: trace_id
+          matcherRegex: '"trace_id":"([0-9a-f]{32})"'
+          datasourceUid: loki
+          url: '{namespace="workshop"} |= "$${__value.raw}"'
+          urlDisplayLabel: ดู log ทั้ง trace
   - name: Prometheus
     uid: prometheus
     type: prometheus

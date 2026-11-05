@@ -59,7 +59,8 @@ services:
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_AUTH_ANONYMOUS_ENABLED: "true"
-      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      # Editor เพื่อให้เปิด Explore ได้โดยไม่ต้อง login (Grafana ในเครื่อง ข้อมูลจำลอง)
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Editor
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
     ports: ["${GRAFANA_PORT:-3000}:3000"]

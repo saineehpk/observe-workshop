@@ -30,9 +30,12 @@ make scenarios   # รัน scenario ทั้ง 4
 claude           # เปิด Claude Code ในโฟลเดอร์นี้ แล้วเริ่มถามได้เลย
 ```
 
-- Grafana: http://localhost:3000 (admin / admin, หรือเข้าแบบ Viewer ได้โดยไม่ต้อง login)
+- Grafana: http://localhost:3000 ไม่ต้อง login ก็เปิด **Explore** ได้ (admin / admin ถ้าต้องตั้งค่า)
 - API: http://localhost:8080 · Worker: http://localhost:8081 · Prometheus: http://localhost:9090
-- ถ้าพอร์ต 3000 ถูกใช้อยู่: `GRAFANA_PORT=3300 make up` แล้ว `GRAFANA_PORT=3300 make mcp`
+- ถ้าพอร์ต 3000 ถูกใช้อยู่ (เช่นมี Grafana ตัวอื่นเปิดอยู่) ให้ `export GRAFANA_PORT=3300` ก่อนรันทุกคำสั่ง
+  `make up`, `make mcp`, `make seed` จะใช้พอร์ตนี้เอง แล้วเปิด http://localhost:3300
+
+ใน Explore ของ Loki ทุกบรรทัดที่มี `trace_id` กดขยายแล้วจะมีลิงก์ **ดู log ทั้ง trace** เปิด log ของทุก service ใน trace นั้น
 
 `make help` แสดงคำสั่งทั้งหมด
 
@@ -98,6 +101,15 @@ sum by (operation, error_class) (count_over_time({namespace="workshop"} | json |
 ```promql
 sum by (operation, outcome, error_class, money_effect) (rate(workshop_business_records_total{stage="completed"}[5m]))
 ```
+
+## ปัญหาที่เจอบ่อย
+
+| อาการ | วิธีแก้ |
+|---|---|
+| `port is already allocated` | ดูว่าพอร์ตไหนชน ถ้าเป็น 3000 ให้ `export GRAFANA_PORT=3300` ถ้าเป็นพอร์ตอื่นให้ปิดตัวที่ใช้อยู่ แล้ว **`make stop` ก่อน `make up` ใหม่** ไม่งั้น container ที่ค้างจากรอบที่พังอาจไม่ได้ต่อ network (เช่น Grafana ขึ้น 502 ตอน query Prometheus) |
+| Prometheus ไม่มีข้อมูล หรือ Grafana ขึ้น 502 | `docker compose up -d --force-recreate prometheus` |
+| `make seed` บอกว่า could not write annotation | Grafana ไม่ได้อยู่ที่พอร์ตที่สคริปต์ใช้ ตั้ง `GRAFANA_PORT` ให้ตรง |
+| ยอดเงินเพี้ยนจากรอบก่อน | `make reset` |
 
 ## ปิด
 
