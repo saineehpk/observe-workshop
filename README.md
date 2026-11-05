@@ -35,13 +35,13 @@ claude           # เปิด Claude Code ในโฟลเดอร์นี
 ไม่ต้องตั้งค่าอะไร `make start` พิมพ์ URL ออกมาให้ ปกติคือ:
 
 - Grafana: http://localhost:3000 ไม่ต้อง login ก็เปิด **Explore** ได้ (admin / admin ถ้าต้องตั้งค่า)
-- API: http://localhost:8080 · Worker: http://localhost:8081 · Prometheus: http://localhost:9090
+- API (gateway ของทุกเว็บ): http://localhost:8080 เลือกเว็บด้วย header `X-Site` · Prometheus: http://localhost:9090
 
 ถ้าพอร์ตไหนมีโปรแกรมอื่นใช้อยู่ จะเลือกพอร์ตว่างให้เอง (เช่น Grafana 3000 → 3300) แล้วเก็บไว้ใน `.env`
 ทุกคำสั่ง `make` และ scenario ใช้ค่าเดียวกัน ดูค่าที่ได้ด้วย `cat .env` (ความหมายของแต่ละค่าอยู่ใน `.env.example`)
 แต่ละโฟลเดอร์เป็น docker project แยกกัน clone ไว้สองที่ก็รันพร้อมกันได้ log ไม่ปนกัน
 
-ดู log: เมนู **Explore** → `Loki` → `{namespace="workshop"} | json` แต่ละบรรทัดแสดงเป็น JSON มีแถบ Fields ด้านซ้ายไว้กรอง
+ดู log: เมนู **Explore** → `Loki` → `{namespace="web-alpha"} | json` แต่ละบรรทัดแสดงเป็น JSON มีแถบ Fields ด้านซ้ายไว้กรอง
 กดขยายบรรทัดที่มี `trace_id` จะมี 2 ลิงก์:
 
 - **Tempo** เปิด trace เป็น waterfall ของ span ทุก service (เห็นเลยว่าขั้นไหนช้า ขั้นไหน error)
@@ -53,24 +53,42 @@ claude           # เปิด Claude Code ในโฟลเดอร์นี
 
 ## ระบบจำลองมีอะไร
 
+จำลองหลายเว็บแบบของจริง: **1 เว็บ = 1 namespace** ทุกเว็บรันโค้ดชุดเดียวกัน แต่ config และผู้เล่นแยกกัน
+
+| เว็บ (namespace) | service |
+|---|---|
+| `web-alpha` | `demo-customer-api`, `demo-withdraw-worker` |
+| `web-bravo` | `demo-customer-api`, `demo-withdraw-worker` |
+| `web-charlie` | `demo-customer-api`, `demo-withdraw-worker` |
+
+username ขึ้นต้นด้วยชื่อเว็บแล้วตามด้วยเลข เช่น `alpha0004`, `bravo0006`, `charlie0005` (เว็บละ 0001–0050)
+ticket จริงมีแค่ชื่อเว็บกับ username: กรองด้วย `namespace` ของเว็บนั้นก่อน แล้วค่อยกรอง username
+
 ```text
-             ┌───────────────────────────── demo-customer-api ─────────────────────────────┐
-player ──►   │ POST /withdraw ──RPC (timeout 2s)──► demo-withdraw-worker  (ตัดเครดิตจริง)   │
-             │ POST /pocket/exchange   (เขียน ledger ที่มี unique hash)                    │
-             │ POST /checkin/claim ──► statement-consumer (อ่านจาก replica ที่ช้า 500ms)    │
-             └─────────────────────────────────────────────────────────────────────────────┘
+player ──► gateway (header X-Site) ──► demo-customer-api ของเว็บนั้น
+             POST /withdraw ──RPC (timeout 2s, traceparent)──► demo-withdraw-worker (ตัดเครดิตจริง)
+             POST /pocket/exchange   (เขียน ledger)
+             POST /checkin/claim ──► statement-consumer (อัปเดตสถานะเช็คอิน)
 stdout (JSON) ──► Alloy ──► Loki     /metrics ──► Prometheus     OTLP spans ──► Tempo
                      ทั้งหมด ──► Grafana ──► MCP ──► Claude
 ```
 
-| Scenario | คำสั่ง | สิ่งที่ผู้เล่นเห็น |
-|---|---|---|
-| 01 happy path | `make s01` | ทุกอย่างสำเร็จ |
-| 02 ย้ายกระเป๋าสองครั้ง | `make s02` | ครั้งที่สองได้ "เกิดข้อผิดพลาด" |
-| 03 เช็คอินสองครั้ง | `make s03` | รับรางวัลได้สองครั้งในวันเดียว |
-| 04 ถอนตอนปลายทางช้า | `make s04` | ได้ "รายการกำลังดำเนินการ" |
+label `namespace` (ชื่อเว็บ) มีทั้งใน log, metric และ trace
 
-แต่ละ scenario พิมพ์ `trace_id` ออกมา ใช้ค้นต่อใน Loki หรือถาม Claude ได้
+ยิงคำขอเองได้ด้วย curl:
+
+```bash
+curl -s -H 'X-Site: web-bravo' localhost:8080/state/bravo0006
+curl -s -H 'X-Site: web-bravo' -H 'Content-Type: application/json' \
+  -d '{"username":"bravo0006","amount":100}' localhost:8080/withdraw
+```
+
+## แบบฝึก
+
+`make ex1` … `make ex4` คืนยอดเงิน จำลองเคส แล้วพิมพ์ **ticket** (เว็บ + username + เวลา + อาการ) พร้อม prompt สำหรับ Claude
+หาเคสไม่เจอใช้ `make hint` รายละเอียดโจทย์อยู่ใน [docs/exercises.md](docs/exercises.md)
+
+scenario แบบไม่คืนยอดเงินยังใช้ได้: `make s01` … `make s04` (พิมพ์ trace_id ออกมาตรงๆ)
 
 ## เติมข้อมูลให้ Grafana
 
@@ -78,8 +96,8 @@ stdout (JSON) ──► Alloy ──► Loki     /metrics ──► Prometheus  
 |---|---|
 | `make seed` | **รันก่อนเริ่มคลาส** ยิง traffic เบื้องหลังประมาณ 10 นาที: ปกติ 4 นาที → ปลายทางช้า 90 วินาที → ปกติ 4 นาที ดูความคืบหน้าด้วย `make seed-status` |
 | `make seed-fast` | แบบสั้นประมาณ 3 นาที: ปกติ 60 วินาที → ปลายทางช้า 40 วินาที → ปกติ 60 วินาที ยิงถี่ขึ้น 3 เท่า (`RATE_SLEEP=0.1`) spike สั้นมาก ต้องดูด้วย `rate(...[1m])` |
-| `make traffic` | traffic สุ่ม 2 นาที (timeout ประมาณ 5% ของ withdraw) |
-| `make spike` | traffic 90 วินาที ที่ withdraw ช้าจน timeout 40% |
+| `make traffic` | traffic สุ่มทุกเว็บ 2 นาที |
+| `make spike` | traffic 90 วินาที ที่ปลายทางของเว็บหนึ่งช้าจน timeout บ่อย |
 
 traffic มีเคสปนอยู่แล้ว: ยอดไม่พอ (`insufficient_*`), user ที่ไม่มีอยู่จริง, ย้ายกระเป๋าซ้ำในนาทีเดียว และเช็คอินที่ถูกเขียนทับ
 ปรับได้ด้วย env: `TIMEOUT_PCT`, `RATE_SLEEP`, `NORMAL_SECONDS`, `SPIKE_SECONDS`, `SPIKE_TIMEOUT_PCT`
@@ -95,7 +113,7 @@ log และ metric เก็บใน Docker volume: `make stop` ปิดแ�
 | legacy | `make legacy` | `withdraw rpc error: context deadline exceeded` ไม่มี trace_id ไม่มีโครงสร้าง |
 | business | `make business` | JSON record ตาม [docs/record-contract.md](docs/record-contract.md) |
 
-สลับโหมดแล้วรัน scenario เดิม จะเห็นว่าแต่ละโหมดตอบ 4 ข้อข้างบนได้ต่างกันแค่ไหน
+สลับโหมดแล้วรัน scenario เดิม (หรือใช้ `make ex1` กับ `make ex1-business`) จะเห็นว่าแต่ละโหมดตอบ 4 ข้อข้างบนได้ต่างกันแค่ไหน
 
 ## เอกสาร
 
@@ -106,13 +124,14 @@ log และ metric เก็บใน Docker volume: `make stop` ปิดแ�
 ## query ที่ใช้บ่อย
 
 ```logql
-{namespace="workshop"} |= "<trace_id>"
-{service_name="demo-customer-api"} | json | outcome!="accepted"
-sum by (operation, error_class) (count_over_time({namespace="workshop"} | json | stage="completed" [5m]))
+{namespace="web-bravo", service_name="demo-customer-api"} | json | username="bravo0006"
+{namespace=~"web-.+"} |= "<trace_id>"
+{namespace=~"web-.+", service_name="demo-customer-api"} | json | stage="completed" | outcome!="accepted"
+sum by (namespace, operation, error_class) (count_over_time({namespace=~"web-.+"} | json | stage="completed" [5m]))
 ```
 
 ```promql
-sum by (operation, outcome, error_class, money_effect) (rate(workshop_business_records_total{stage="completed"}[5m]))
+sum by (namespace, operation, outcome, error_class, money_effect) (rate(workshop_business_records_total{stage="completed"}[1m]))
 ```
 
 ## ปัญหาที่เจอบ่อย
@@ -122,7 +141,8 @@ sum by (operation, outcome, error_class, money_effect) (rate(workshop_business_r
 | `port is already allocated` | มีโปรแกรมเปิดพอร์ตนั้นหลังจากที่ `.env` ถูกสร้างไปแล้ว ให้ `make stop` → `make env` (เลือกพอร์ตว่างใหม่) → `make up` → `make mcp` ต้อง `make stop` ก่อนเสมอ ไม่งั้น container ที่ค้างจากรอบที่พังอาจไม่ได้ต่อ network |
 | Prometheus ไม่มีข้อมูล หรือ Grafana ขึ้น 502 | `docker compose up -d --force-recreate prometheus` |
 | `make seed` บอกว่า could not write annotation | Grafana ไม่ได้อยู่ที่พอร์ตใน `.env` ดูด้วย `cat .env` ถ้าไม่ตรงให้ `make stop` → `make env` → `make up` |
-| ยอดเงินเพี้ยนจากรอบก่อน | `make reset` |
+| ยอดเงินเพี้ยนจากรอบก่อน | `make reset` (หรือ `make exN` ซึ่งคืนยอดให้เอง) |
+| `make exN` บอกว่า seed กำลังเติมข้อมูลอยู่ | รอ `make seed-status` ขึ้น done หรือ `make seed-stop` |
 
 ## ปิด
 

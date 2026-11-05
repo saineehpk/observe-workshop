@@ -24,7 +24,7 @@ func setupTracing(service string, export bool) func(context.Context) error {
 	opts := []sdktrace.TracerProviderOption{
 		sdktrace.WithResource(resource.NewSchemaless(
 			attribute.String("service.name", service),
-			attribute.String("service.namespace", "workshop"),
+			attribute.String("service.namespace", env("NAMESPACE", "workshop")), // the website
 		)),
 	}
 	if export && os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" {

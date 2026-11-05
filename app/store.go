@@ -33,7 +33,9 @@ type Store struct {
 	replicaLag time.Duration
 }
 
-func newStore(users int, replicaLag time.Duration) *Store {
+// newStore creates users <prefix>0001..<prefix>NNNN: every website names its users
+// after itself (alpha0001, bravo0001, ...), so a username also tells which site it is.
+func newStore(prefix string, users int, replicaLag time.Duration) *Store {
 	s := &Store{
 		accounts:   map[string]*Account{},
 		ledgerHash: map[string]bool{},
@@ -41,7 +43,7 @@ func newStore(users int, replicaLag time.Duration) *Store {
 		replicaLag: replicaLag,
 	}
 	for i := 1; i <= users; i++ {
-		u := fmt.Sprintf("player%03d", i)
+		u := fmt.Sprintf("%s%04d", prefix, i)
 		s.accounts[u] = &Account{Credit: 1000, Pocket: 500, Stack: 1}
 		s.secondary[u] = 1
 	}

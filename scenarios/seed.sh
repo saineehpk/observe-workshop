@@ -21,7 +21,7 @@ TIMEOUT_PCT="${SPIKE_TIMEOUT_PCT:-40}" "$here/traffic.sh" "$spike"
 spike_end=$(now_ms)
 
 curl -sf -o /dev/null -u admin:admin -H 'Content-Type: application/json' -X POST "$GRAFANA/api/annotations" \
-  -d "{\"time\":$spike_start,\"timeEnd\":$spike_end,\"tags\":[\"spike\",\"workshop\"],\"text\":\"เฉลย: ช่วงที่ปลายทางช้า (TIMEOUT_PCT=${SPIKE_TIMEOUT_PCT:-40})\"}" \
+  -d "{\"time\":$spike_start,\"timeEnd\":$spike_end,\"tags\":[\"spike\",\"workshop\"],\"text\":\"เฉลย: web-bravo ปลายทางช้า (TIMEOUT_PCT=${SPIKE_TIMEOUT_PCT:-40})\"}" \
   && echo "[seed] annotation 'spike' written to $GRAFANA" \
   || echo "[seed] could not write annotation to $GRAFANA (set GRAFANA_PORT if Grafana is not on 3000)"
 

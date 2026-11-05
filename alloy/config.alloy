@@ -2,6 +2,9 @@
 // with the same label shape production uses: service_name + namespace.
 discovery.docker "workshop" {
   host = "unix:///var/run/docker.sock"
+  // default is 60s: a container recreated sooner (make ex*, make legacy/business)
+  // would be removed before Alloy ever read its logs
+  refresh_interval = "2s"
   filter {
     name   = "label"
     values = ["workshop.observe=true"]

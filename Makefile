@@ -1,7 +1,10 @@
-.PHONY: help start env up stop down clean reset legacy business mcp s01 s02 s03 s04 scenarios traffic spike seed seed-fast seed-status seed-stop logs
+.PHONY: help start env up stop down clean reset legacy business mcp s01 s02 s03 s04 scenarios traffic spike seed seed-fast seed-status seed-stop ex1 ex1-business ex2 ex3 ex4 hint logs
 
 # .env (สร้างอัตโนมัติตอน make up) เก็บพอร์ตที่ว่างและชื่อ project ของโฟลเดอร์นี้
 # docker compose อ่านไฟล์นี้เอง สคริปต์ใน scenarios/ และ scripts/ ก็อ่านเอง make จึงไม่ต้อง export อะไร
+
+# api + worker ของทุกเว็บ (namespace web-alpha / web-bravo / web-charlie)
+APPS := api-alpha worker-alpha api-bravo worker-bravo api-charlie worker-charlie
 
 help:            ## แสดงคำสั่งทั้งหมด
 	@grep -E '^[a-z0-9-]+:.*##' $(firstword $(MAKEFILE_LIST)) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -20,8 +23,8 @@ env:             ## เลือกพอร์ตว่างใหม่ลง
 
 up:              ## เปิด stack ทั้งหมด (โหมด business) พอร์ตไหนไม่ว่างจะเลือกพอร์ตอื่นให้เอง
 	@./scripts/env.sh --if-missing
-	docker compose up -d --build
-	@. ./.env; echo "Grafana http://localhost:$$GRAFANA_PORT · API http://localhost:$$API_PORT · Worker http://localhost:$$WORKER_PORT · Prometheus http://localhost:$$PROMETHEUS_PORT"
+	docker compose up -d --build --remove-orphans
+	@. ./.env; echo "Grafana http://localhost:$$GRAFANA_PORT · API (gateway, header X-Site) http://localhost:$$API_PORT · Prometheus http://localhost:$$PROMETHEUS_PORT"
 
 stop:            ## ปิด stack แต่เก็บ log/metric ไว้
 	docker compose down
@@ -33,16 +36,16 @@ clean:           ## ล้างทุกอย่าง: seed, container, volum
 	-@$(MAKE) --no-print-directory seed-stop
 	docker compose down -v --rmi local
 	-claude mcp remove grafana-local -s local
-	rm -f .env .seed.log .seed.pid
+	rm -f .env .seed.log .seed.pid .ex/*
 
 reset:           ## รีสตาร์ต app ให้ยอดเงินกลับค่าเริ่มต้น
-	docker compose restart api worker
+	docker compose restart $(APPS)
 
 legacy:          ## สลับ app เป็น log แบบเก่า (ก่อนมี observe)
-	OBSERVE_MODE=legacy docker compose up -d api worker
+	OBSERVE_MODE=legacy docker compose up -d $(APPS)
 
 business:        ## สลับ app เป็น business record
-	OBSERVE_MODE=business docker compose up -d api worker
+	OBSERVE_MODE=business docker compose up -d $(APPS)
 
 mcp:             ## ต่อ Claude Code เข้ากับ Grafana ในเครื่อง (grafana-local)
 	./scripts/setup-mcp.sh
@@ -56,6 +59,19 @@ s03:             ## scenario 03 เช็คอินรับซ้ำ
 s04:             ## scenario 04 ถอนช้าจน timeout
 	./scenarios/04-rpc-timeout-unknown.sh
 scenarios: s01 s02 s03 s04 ## รันทุก scenario
+
+ex1:             ## แบบฝึกข้อ 1 (legacy): ตั้งโหมด + คืนยอดเงิน + จำลองเคส แล้วพิมพ์ ticket
+	@./scenarios/ex.sh ex1
+ex1-business:    ## แบบฝึกข้อ 1 ช่วงหลัง: เคสเดิมในโหมด business แล้วพิมพ์ ticket
+	@./scenarios/ex.sh ex1-business
+ex2:             ## แบบฝึกข้อ 2 (web-alpha): ย้ายกระเป๋า "เกิดข้อผิดพลาด" แล้วพิมพ์ ticket
+	@./scenarios/ex.sh ex2
+ex3:             ## แบบฝึกข้อ 3 (web-charlie): เช็คอินรับซ้ำ แล้วพิมพ์ ticket
+	@./scenarios/ex.sh ex3
+ex4:             ## แบบฝึกข้อ 4 (web-bravo): ถอนแล้ว "กำลังดำเนินการ" แล้วพิมพ์ ticket
+	@./scenarios/ex.sh ex4
+hint:            ## ดู trace_id + prompt ของแบบฝึกล่าสุด (เมื่อหาเองไม่เจอ)
+	@./scenarios/ex.sh hint
 
 traffic:         ## ยิง traffic สุ่ม 2 นาที
 	./scenarios/traffic.sh 120
@@ -80,4 +96,4 @@ seed-stop:       ## หยุด seed กลางทาง
 	@-kill $$(cat .seed.pid 2>/dev/null) 2>/dev/null; pkill -f scenarios/traffic.sh 2>/dev/null; rm -f .seed.pid; echo "seed stopped"
 
 logs:            ## ดู log ของ app ใน terminal
-	docker compose logs -f api worker
+	docker compose logs -f $(APPS)

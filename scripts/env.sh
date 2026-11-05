@@ -31,7 +31,6 @@ pick() {
   echo "# created by scripts/env.sh · read by make, scenarios and docker compose · not committed"
   pick GRAFANA_PORT 3000
   pick API_PORT 8080
-  pick WORKER_PORT 8081
   pick PROMETHEUS_PORT 9090
   # one docker project per folder (same rule docker compose uses), so each clone is separate
   echo "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-$(basename "$PWD" | tr 'A-Z' 'a-z' | tr -cd 'a-z0-9_-')}"

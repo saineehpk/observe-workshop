@@ -12,7 +12,7 @@
 | `outcome` | `accepted` · `rejected` · `failed` · `partial` | ชุดปิด 4 ค่า |
 | `error_class` | `none` เมื่อผ่าน หรือชุดปิดต่อ operation | เพราะอะไร (ห้ามใส่ข้อความ error ดิบ) |
 | `money_effect` | `none` · `confirmed` · `unknown` | เงินขยับหรือยัง |
-| `username` | | ใครโดน |
+| `username` | `<เว็บ><เลข>` เช่น `bravo0006` | ใครโดน ค้นคู่กับ label `namespace` (ชื่อเว็บ) |
 | `duration_ms` | | ใช้เวลาเท่าไร |
 
 แล้วเพิ่ม field ของ flow แบบ flat เช่น `amount`, `credit_before`, `credit_after`, `stack_read`
@@ -38,6 +38,7 @@ ERROR จึงแปลว่า "ต้องมีคนดู" ไม่ใ�
 
 - label ทุกตัวเป็นชุดปิด ค่า `error_class` ที่ไม่อยู่ใน `knownErrorClasses` จะถูกยุบเป็น `other`
 - ห้ามใส่ `username`, `trace_id`, ยอดเงิน เป็น label (cardinality ระเบิด) ของพวกนี้อยู่ใน log
+- `namespace` (ชื่อเว็บ) และ `service_name` มาจาก label ของ target ตอน scrape ไม่ใช่ label ที่แอปใส่เอง มีไม่กี่ค่าจึงใช้ได้
 - ดูเป็นอัตรา (`rate`) ไม่ใช่ยอดรวม
 
 ## record "รับเข้ามาแล้ว"

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -13,9 +14,14 @@ import (
 
 func main() {
 	role := env("ROLE", "api")
+	if role == "gateway" {
+		runGateway(":"+env("PORT", "8080"), env("SITES", ""))
+		return
+	}
 	obs := newObserver(env("OBSERVE_MODE", "business"))
 	defer setupTracing(env("SERVICE_NAME", "demo-"+role), obs.business)(context.Background())
-	store := newStore(50, ms("REPLICA_LAG_MS", 500))
+	// users are named after the website: NAMESPACE web-bravo -> bravo0001..bravo0050
+	store := newStore(env("USER_PREFIX", strings.TrimPrefix(env("NAMESPACE", "web-player"), "web-")), 50, ms("REPLICA_LAG_MS", 500))
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /metrics", promhttp.HandlerFor(obs.registry, promhttp.HandlerOpts{}))
@@ -25,7 +31,7 @@ func main() {
 	case "worker":
 		(&Worker{obs: obs, store: store}).routes(mux)
 	default:
-		log.Fatalf("unknown ROLE %q (want api or worker)", role)
+		log.Fatalf("unknown ROLE %q (want api, worker or gateway)", role)
 	}
 
 	addr := ":" + env("PORT", "8080")

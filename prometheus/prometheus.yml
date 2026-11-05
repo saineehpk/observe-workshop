@@ -1,7 +1,15 @@
 global:
   scrape_interval: 5s
+# namespace = the website, added as a target label here (like Kubernetes service discovery does),
+# so the app's own metrics stay free of per-site labels
 scrape_configs:
   - job_name: demo-customer-api
-    static_configs: [{ targets: ["api:8080"], labels: { service_name: demo-customer-api, namespace: workshop } }]
+    static_configs:
+      - { targets: ["api-alpha:8080"], labels: { service_name: demo-customer-api, namespace: web-alpha } }
+      - { targets: ["api-bravo:8080"], labels: { service_name: demo-customer-api, namespace: web-bravo } }
+      - { targets: ["api-charlie:8080"], labels: { service_name: demo-customer-api, namespace: web-charlie } }
   - job_name: demo-withdraw-worker
-    static_configs: [{ targets: ["worker:8081"], labels: { service_name: demo-withdraw-worker, namespace: workshop } }]
+    static_configs:
+      - { targets: ["worker-alpha:8081"], labels: { service_name: demo-withdraw-worker, namespace: web-alpha } }
+      - { targets: ["worker-bravo:8081"], labels: { service_name: demo-withdraw-worker, namespace: web-bravo } }
+      - { targets: ["worker-charlie:8081"], labels: { service_name: demo-withdraw-worker, namespace: web-charlie } }

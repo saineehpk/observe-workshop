@@ -2,38 +2,65 @@ x-app: &app
   build: ./app
   restart: unless-stopped
 
-services:
-  api:
-    <<: *app
-    environment:
-      ROLE: api
-      PORT: "8080"
-      SERVICE_NAME: demo-customer-api
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
-      OBSERVE_MODE: ${OBSERVE_MODE:-business}
-      WORKER_URL: http://worker:8081
-      RPC_TIMEOUT_MS: "2000"
-      REPLICA_LAG_MS: "500"
-      CONSUMER_DELAY_MS: "20"
-    ports: ["${API_PORT:-8080}:8080"]
-    labels:
-      workshop.observe: "true"
-      service_name: demo-customer-api
-      namespace: workshop
+# Every website is its own namespace with the same code (demo-customer-api + demo-withdraw-worker)
+# but its own config and its own players, named after the site (alpha0001..alpha0050, bravo0001.., charlie0001..).
+#   web-alpha    normal
+#   web-bravo    the withdraw downstream is slower (traffic times out more often, the spike happens here)
+#   web-charlie  replica lags 500ms behind (other sites 5ms), so the check-in consumer reads stale state
+x-api-env: &api-env
+  ROLE: api
+  PORT: "8080"
+  SERVICE_NAME: demo-customer-api
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+  OBSERVE_MODE: ${OBSERVE_MODE:-business}
+  RPC_TIMEOUT_MS: "2000"
+  CONSUMER_DELAY_MS: "20"
+x-worker-env: &worker-env
+  ROLE: worker
+  PORT: "8081"
+  SERVICE_NAME: demo-withdraw-worker
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+  OBSERVE_MODE: ${OBSERVE_MODE:-business}
 
-  worker:
+services:
+  # ingress for all websites: pick one with the X-Site header (production: the website's domain)
+  gateway:
     <<: *app
     environment:
-      ROLE: worker
-      PORT: "8081"
-      SERVICE_NAME: demo-withdraw-worker
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
-      OBSERVE_MODE: ${OBSERVE_MODE:-business}
-    ports: ["${WORKER_PORT:-8081}:8081"]
-    labels:
-      workshop.observe: "true"
-      service_name: demo-withdraw-worker
-      namespace: workshop
+      ROLE: gateway
+      PORT: "8080"
+      SITES: >-
+        web-alpha=http://api-alpha:8080|http://worker-alpha:8081,
+        web-bravo=http://api-bravo:8080|http://worker-bravo:8081,
+        web-charlie=http://api-charlie:8080|http://worker-charlie:8081
+    ports: ["${API_PORT:-8080}:8080"]
+
+  api-alpha:
+    <<: *app
+    environment: { <<: *api-env, NAMESPACE: web-alpha, WORKER_URL: "http://worker-alpha:8081", REPLICA_LAG_MS: "5" }
+    labels: { workshop.observe: "true", service_name: demo-customer-api, namespace: web-alpha }
+  worker-alpha:
+    <<: *app
+    environment: { <<: *worker-env, NAMESPACE: web-alpha }
+    labels: { workshop.observe: "true", service_name: demo-withdraw-worker, namespace: web-alpha }
+
+  api-bravo:
+    <<: *app
+    environment: { <<: *api-env, NAMESPACE: web-bravo, WORKER_URL: "http://worker-bravo:8081", REPLICA_LAG_MS: "5" }
+    labels: { workshop.observe: "true", service_name: demo-customer-api, namespace: web-bravo }
+  worker-bravo:
+    <<: *app
+    environment: { <<: *worker-env, NAMESPACE: web-bravo }
+    labels: { workshop.observe: "true", service_name: demo-withdraw-worker, namespace: web-bravo }
+
+  api-charlie:
+    <<: *app
+    environment: { <<: *api-env, NAMESPACE: web-charlie, WORKER_URL: "http://worker-charlie:8081", REPLICA_LAG_MS: "500" }
+    labels: { workshop.observe: "true", service_name: demo-customer-api, namespace: web-charlie }
+  worker-charlie:
+    <<: *app
+    environment: { <<: *worker-env, NAMESPACE: web-charlie }
+    labels: { workshop.observe: "true", service_name: demo-withdraw-worker, namespace: web-charlie }
 
   loki:
     image: grafana/loki:3.2.0
