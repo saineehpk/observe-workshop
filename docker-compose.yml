@@ -1,0 +1,70 @@
+name: observe-workshop
+
+x-app: &app
+  build: ./app
+  restart: unless-stopped
+
+services:
+  api:
+    <<: *app
+    environment:
+      ROLE: api
+      PORT: "8080"
+      OBSERVE_MODE: ${OBSERVE_MODE:-business}
+      WORKER_URL: http://worker:8081
+      RPC_TIMEOUT_MS: "2000"
+      REPLICA_LAG_MS: "500"
+      CONSUMER_DELAY_MS: "20"
+    ports: ["8080:8080"]
+    labels:
+      workshop.observe: "true"
+      service_name: demo-customer-api
+      namespace: workshop
+
+  worker:
+    <<: *app
+    environment:
+      ROLE: worker
+      PORT: "8081"
+      OBSERVE_MODE: ${OBSERVE_MODE:-business}
+    ports: ["8081:8081"]
+    labels:
+      workshop.observe: "true"
+      service_name: demo-withdraw-worker
+      namespace: workshop
+
+  loki:
+    image: grafana/loki:3.2.0
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki-data:/loki
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports: ["9090:9090"]
+
+  alloy:
+    image: grafana/alloy:v1.4.3
+    command: run /etc/alloy/config.alloy
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on: [loki]
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    ports: ["${GRAFANA_PORT:-3000}:3000"]
+    depends_on: [loki, prometheus]
+
+volumes:
+  loki-data:
+  prometheus-data:

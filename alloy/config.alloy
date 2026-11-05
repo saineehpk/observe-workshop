@@ -1,0 +1,34 @@
+// Collect stdout of containers labelled workshop.observe=true and ship to Loki
+// with the same label shape production uses: service_name + namespace.
+discovery.docker "workshop" {
+  host = "unix:///var/run/docker.sock"
+  filter {
+    name   = "label"
+    values = ["workshop.observe=true"]
+  }
+}
+
+discovery.relabel "workshop" {
+  targets = []
+  rule {
+    source_labels = ["__meta_docker_container_label_service_name"]
+    target_label  = "service_name"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_namespace"]
+    target_label  = "namespace"
+  }
+}
+
+loki.source.docker "workshop" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.workshop.targets
+  relabel_rules = discovery.relabel.workshop.rules
+  forward_to    = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
