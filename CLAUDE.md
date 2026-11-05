@@ -8,7 +8,8 @@ Reply in the language the learner writes in.
 - MCP server `grafana-local` (created by `make mcp`)
 - Loki datasource uid `loki`: labels `service_name` (`demo-customer-api`, `demo-withdraw-worker`) and `namespace="workshop"`
 - Prometheus datasource uid `prometheus`: metric `workshop_business_records_total{operation,stage,outcome,error_class,money_effect}` and `workshop_http_request_duration_seconds`
-- Log lines are JSON. The event name is in `msg`. Records join across services by `trace_id`.
+- Tempo datasource uid `tempo`: traces from both services (OpenTelemetry, W3C `traceparent`). Each business record is also a span event.
+- Log lines are JSON. The event name is in `msg`. Records join across services by `trace_id`; `span_id` points to the span in Tempo.
 
 ## Record contract
 

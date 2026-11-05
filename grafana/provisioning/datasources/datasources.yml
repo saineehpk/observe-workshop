@@ -7,16 +7,39 @@ datasources:
     url: http://loki:3100
     isDefault: true
     jsonData:
-      # trace_id ในทุกบรรทัดกลายเป็นลิงก์ กดแล้วเปิด Explore ที่ query log ทุก service ของ trace นั้น
-      # ใช้ลิงก์ Explore ตรงๆ เพราะ internal link (datasourceUid) ไป Loki ส่ง query ผิด field แล้วขึ้น error
-      # panes = {"a":{"datasource":"loki","queries":[{"expr":"{namespace=\"workshop\"} |= \"<trace_id>\"",...}],"range":{"from":"now-6h","to":"now"}}}
       derivedFields:
-        - name: trace_id
+        # trace_id ในทุกบรรทัด → ปุ่ม Tempo เปิด trace (waterfall ของ span ทุก service)
+        - name: TraceID
+          matcherRegex: '"trace_id":"([0-9a-f]{32})"'
+          datasourceUid: tempo
+          url: '$${__value.raw}'
+          urlDisplayLabel: Tempo
+        # อีกลิงก์: เปิด Explore ที่ query log ทุก service ของ trace นั้น (ไม่ต้องใช้ Tempo)
+        # ใช้ลิงก์ Explore ตรงๆ เพราะ internal link ไป Loki ส่ง query ผิด field แล้วขึ้น error
+        # panes = {"a":{"datasource":"loki","queries":[{"expr":"{namespace=\"workshop\"} |= \"<trace_id>\"",...}],"range":{"from":"now-6h","to":"now"}}}
+        - name: trace_logs
           matcherRegex: '"trace_id":"([0-9a-f]{32})"'
           url: '/explore?schemaVersion=1&orgId=1&panes=%7B%22a%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22loki%22%2C%22uid%22%3A%22loki%22%7D%2C%22editorMode%22%3A%22code%22%2C%22queryType%22%3A%22range%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22workshop%5C%22%7D%20%7C%3D%20%5C%22$${__value.raw}%5C%22%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-6h%22%2C%22to%22%3A%22now%22%7D%7D%7D'
           urlDisplayLabel: ดู log ทั้ง trace
+
   - name: Prometheus
     uid: prometheus
     type: prometheus
     access: proxy
     url: http://prometheus:9090
+
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    jsonData:
+      # จาก span กลับไปที่ log: ปุ่ม "Logs for this span" ใน trace view
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: -5m
+        spanEndTimeShift: 5m
+        filterByTraceID: true
+        filterBySpanID: false
+        customQuery: true
+        query: '{namespace="workshop"} |= "$${__trace.traceId}"'

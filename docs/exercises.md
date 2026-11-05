@@ -39,7 +39,8 @@
 
 1. `make s04` แล้วดูทั้งสองฝั่งด้วย trace_id เดียวกัน
 2. api บอกอะไร worker บอกอะไร ใครเป็นแหล่งความจริงเรื่องเงิน
-3. field `caller_gone` บอกอะไร
+3. field `caller_gone` บอกอะไร แล้วเปิด trace เดียวกันใน Tempo (ลิงก์ Tempo ใต้บรรทัด log)
+   span ของ api กับ worker ยาวเท่าไร เรื่องเดียวกันดูจาก trace ง่ายกว่าหรือยากกว่า log
 4. เขียน query (LogQL หรือ PromQL) ที่นับเคส "ฝั่ง api ไม่รู้ผล แต่ฝั่ง worker ตัดเงินแล้ว"
 5. ออกแบบ alert: เงื่อนไข · threshold · ส่งถึงใคร · คนรับ alert ต้องทำอะไรต่อ
 

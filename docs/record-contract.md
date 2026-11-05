@@ -5,7 +5,8 @@
 | field | ค่า | ความหมาย |
 |---|---|---|
 | `msg` | `<operation>_<stage>` | ชื่อ event ห้ามเปลี่ยนหลังขึ้น prod (dashboard / alert ผูกอยู่) |
-| `trace_id` | hex 32 ตัว | ผูก record ข้าม service ส่งต่อผ่าน header `X-Trace-Id` |
+| `trace_id` | hex 32 ตัว | ผูก record ข้าม service ส่งต่อผ่าน header `traceparent` (W3C) ตรงกับ trace ใน Tempo |
+| `span_id` | hex 16 ตัว | span ที่ออก record นี้ ใช้ชี้ไปที่ขั้นนั้นใน trace view |
 | `operation` | `withdraw`, `withdraw_worker`, `pocket_exchange`, `checkin_claim`, `checkin_stack` | flow ไหน |
 | `stage` | `requested`, `completed`, `written`, ... | ขั้นไหนของ flow |
 | `outcome` | `accepted` · `rejected` · `failed` · `partial` | ชุดปิด 4 ค่า |

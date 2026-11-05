@@ -38,9 +38,13 @@ func (wk *Worker) withdraw(w http.ResponseWriter, r *http.Request) {
 	rec := Record{Operation: "withdraw_worker", Username: req.Username, Start: time.Now()}
 
 	// delay_ms simulates a slow bank / office call.
+	_, bank := tracer.Start(ctx, "bank.call")
 	time.Sleep(time.Duration(req.DelayMS) * time.Millisecond)
+	bank.End()
 
+	_, ledger := tracer.Start(ctx, "ledger.debit")
 	before, after, err := wk.store.Debit(req.Username, req.Amount)
+	ledger.End()
 	callerGone := r.Context().Err() != nil
 	var res workerResponse
 	switch {

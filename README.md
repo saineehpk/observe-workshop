@@ -40,7 +40,13 @@ claude           # เปิด Claude Code ในโฟลเดอร์นี
 ทุกคำสั่ง `make` และ scenario ใช้ค่าเดียวกัน ดูค่าที่ได้ด้วย `cat .env` (ความหมายของแต่ละค่าอยู่ใน `.env.example`)
 แต่ละโฟลเดอร์เป็น docker project แยกกัน clone ไว้สองที่ก็รันพร้อมกันได้ log ไม่ปนกัน
 
-ใน Explore ของ Loki ทุกบรรทัดที่มี `trace_id` กดขยายแล้วจะมีลิงก์ **ดู log ทั้ง trace** เปิด log ของทุก service ใน trace นั้น
+ดู log: เมนู **Explore** → `Loki` → `{namespace="workshop"} | json` แต่ละบรรทัดแสดงเป็น JSON มีแถบ Fields ด้านซ้ายไว้กรอง
+กดขยายบรรทัดที่มี `trace_id` จะมี 2 ลิงก์:
+
+- **Tempo** เปิด trace เป็น waterfall ของ span ทุก service (เห็นเลยว่าขั้นไหนช้า ขั้นไหน error)
+- **ดู log ทั้ง trace** เปิด log ของทุก service ใน trace นั้น
+
+ใน trace view กดไอคอน log ที่ span จะกลับมาที่ log ของ trace นั้นได้
 
 `make help` แสดงคำสั่งทั้งหมด
 
@@ -52,7 +58,8 @@ player ──►   │ POST /withdraw ──RPC (timeout 2s)──► demo-withd
              │ POST /pocket/exchange   (เขียน ledger ที่มี unique hash)                    │
              │ POST /checkin/claim ──► statement-consumer (อ่านจาก replica ที่ช้า 500ms)    │
              └─────────────────────────────────────────────────────────────────────────────┘
-stdout (JSON) ──► Alloy ──► Loki        /metrics ──► Prometheus        ทั้งคู่ ──► Grafana ──► MCP ──► Claude
+stdout (JSON) ──► Alloy ──► Loki     /metrics ──► Prometheus     OTLP spans ──► Tempo
+                     ทั้งหมด ──► Grafana ──► MCP ──► Claude
 ```
 
 | Scenario | คำสั่ง | สิ่งที่ผู้เล่นเห็น |

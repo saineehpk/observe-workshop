@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"log"
 	"log/slog"
@@ -12,6 +10,10 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Outcome is the closed set every business record uses.
@@ -38,23 +40,6 @@ var knownErrorClasses = map[string]bool{
 	"rpc_timeout": true, "rpc_failed": true, "persistence_error": true,
 	"already_claimed": true,
 	// Exercise 2: add the class you discover here.
-}
-
-type traceKey struct{}
-
-func withTrace(ctx context.Context, id string) context.Context {
-	return context.WithValue(ctx, traceKey{}, id)
-}
-
-func traceID(ctx context.Context) string {
-	id, _ := ctx.Value(traceKey{}).(string)
-	return id
-}
-
-func newTraceID() string {
-	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
 }
 
 // Observer switches between the "legacy" logging most services start with
@@ -132,6 +117,7 @@ func (o *Observer) Business(ctx context.Context, r Record) {
 	}
 	attrs := []slog.Attr{
 		slog.String("trace_id", traceID(ctx)),
+		slog.String("span_id", spanID(ctx)),
 		slog.String("operation", r.Operation),
 		slog.String("stage", r.Stage),
 		slog.String("outcome", r.Outcome),
@@ -141,13 +127,34 @@ func (o *Observer) Business(ctx context.Context, r Record) {
 		slog.Int64("duration_ms", time.Since(r.Start).Milliseconds()),
 	}
 	attrs = append(attrs, r.Attrs...)
-	o.logger.LogAttrs(ctx, decisionLevel(r.Outcome, r.MoneyEffect), r.Operation+"_"+r.Stage, attrs...)
+	level := decisionLevel(r.Outcome, r.MoneyEffect)
+	o.logger.LogAttrs(ctx, level, r.Operation+"_"+r.Stage, attrs...)
+	recordOnSpan(trace.SpanFromContext(ctx), r.Operation+"_"+r.Stage, level, attrs)
 
 	class := r.ErrorClass
 	if !knownErrorClasses[class] {
 		class = "other"
 	}
 	o.records.WithLabelValues(r.Operation, r.Stage, r.Outcome, class, r.MoneyEffect).Inc()
+}
+
+// recordOnSpan puts the business record on the current span as an event, so the
+// trace view shows the same decision as the log line. ERROR records mark the span red.
+func recordOnSpan(span trace.Span, msg string, level slog.Level, attrs []slog.Attr) {
+	if !span.IsRecording() {
+		return
+	}
+	kv := make([]attribute.KeyValue, 0, len(attrs))
+	for _, a := range attrs {
+		if a.Key == "trace_id" || a.Key == "span_id" {
+			continue
+		}
+		kv = append(kv, attribute.String(a.Key, a.Value.String()))
+	}
+	span.AddEvent(msg, trace.WithAttributes(kv...))
+	if level >= slog.LevelError {
+		span.SetStatus(codes.Error, msg)
+	}
 }
 
 // Legacy prints the kind of line older code emits: no trace, no structure.
@@ -176,19 +183,20 @@ func (w *statusWriter) WriteHeader(code int) {
 	w.ResponseWriter.WriteHeader(code)
 }
 
-// Middleware assigns or propagates X-Trace-Id and logs every request.
+// Middleware starts a server span per request (continuing the caller's trace
+// from the W3C traceparent header), returns the trace id in X-Trace-Id, and logs every request.
 func (o *Observer) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/metrics" {
 			next.ServeHTTP(w, r)
 			return
 		}
-		id := r.Header.Get("X-Trace-Id")
-		if id == "" {
-			id = newTraceID()
-		}
+		ctx := propagation.TraceContext{}.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		ctx, span := tracer.Start(ctx, r.Method+" "+r.URL.Path, trace.WithSpanKind(trace.SpanKindServer))
+		defer span.End()
+		id := traceID(ctx)
 		w.Header().Set("X-Trace-Id", id)
-		r = r.WithContext(withTrace(r.Context(), id))
+		r = r.WithContext(ctx)
 
 		start := time.Now()
 		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
@@ -199,10 +207,16 @@ func (o *Observer) Middleware(next http.Handler) http.Handler {
 		if route == "" {
 			route = "unmatched"
 		}
+		span.SetName(route)
+		span.SetAttributes(attribute.String("http.route", route), attribute.Int("http.response.status_code", sw.status))
+		if sw.status >= 500 {
+			span.SetStatus(codes.Error, fmt.Sprint(sw.status))
+		}
 		o.httpDur.WithLabelValues(route, fmt.Sprint(sw.status)).Observe(elapsed.Seconds())
 		if o.business {
 			o.logger.LogAttrs(r.Context(), slog.LevelInfo, "http_request_completed",
 				slog.String("trace_id", id),
+				slog.String("span_id", spanID(ctx)),
 				slog.String("method", r.Method),
 				slog.String("route", route),
 				slog.Int("status", sw.status),

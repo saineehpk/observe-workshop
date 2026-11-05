@@ -8,6 +8,8 @@ services:
     environment:
       ROLE: api
       PORT: "8080"
+      SERVICE_NAME: demo-customer-api
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
       OBSERVE_MODE: ${OBSERVE_MODE:-business}
       WORKER_URL: http://worker:8081
       RPC_TIMEOUT_MS: "2000"
@@ -24,6 +26,8 @@ services:
     environment:
       ROLE: worker
       PORT: "8081"
+      SERVICE_NAME: demo-withdraw-worker
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
       OBSERVE_MODE: ${OBSERVE_MODE:-business}
     ports: ["${WORKER_PORT:-8081}:8081"]
     labels:
@@ -55,8 +59,16 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on: [loki]
 
+  tempo:
+    image: grafana/tempo:2.10.9
+    command: -config.file=/etc/tempo.yaml
+    user: "0"   # write to the named volume without a chown step (local, synthetic data)
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+
   grafana:
-    image: grafana/grafana:11.3.0
+    image: grafana/grafana:13.2.4
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_AUTH_ANONYMOUS_ENABLED: "true"
@@ -65,8 +77,9 @@ services:
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
     ports: ["${GRAFANA_PORT:-3000}:3000"]
-    depends_on: [loki, prometheus]
+    depends_on: [loki, prometheus, tempo]
 
 volumes:
   loki-data:
   prometheus-data:
+  tempo-data:

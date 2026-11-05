@@ -9,6 +9,11 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // API plays the player-facing service: withdraw (via RPC to the worker),
@@ -24,7 +29,7 @@ type API struct {
 }
 
 type statementEvent struct {
-	traceID  string
+	span     trace.SpanContext // the claim request's span: the consumer continues its trace
 	username string
 }
 
@@ -107,15 +112,20 @@ func (a *API) withdraw(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) callWorker(ctx context.Context, req playerRequest) (workerResponse, error) {
+	ctx, span := tracer.Start(ctx, "rpc worker /rpc/withdraw", trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(attribute.Int64("rpc.timeout_ms", a.rpcTimeout.Milliseconds())))
+	defer span.End()
 	body, _ := json.Marshal(req)
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, a.workerURL+"/rpc/withdraw", bytes.NewReader(body))
 	if err != nil {
 		return workerResponse{}, err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("X-Trace-Id", traceID(ctx))
+	propagation.TraceContext{}.Inject(ctx, propagation.HeaderCarrier(httpReq.Header)) // traceparent
 	resp, err := a.client.Do(httpReq)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "rpc failed")
 		return workerResponse{}, err
 	}
 	defer resp.Body.Close()
@@ -139,7 +149,12 @@ func (a *API) pocketExchange(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	_, span := tracer.Start(ctx, "ledger.insert pocket_exchange")
 	before, after, err := a.store.ExchangePocket(req.Username, req.Amount, time.Now())
+	if err != nil {
+		span.RecordError(err)
+	}
+	span.End()
 	switch {
 	case errors.Is(err, ErrUnknownUser):
 		a.obs.Business(ctx, rec.at("completed", Rejected, "unknown_user", MoneyNone))
@@ -172,7 +187,9 @@ func (a *API) checkinClaim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rec := Record{Operation: "checkin_claim", Username: req.Username, Start: time.Now()}
+	_, span := tracer.Start(ctx, "ledger.claim_checkin")
 	before, err := a.store.ClaimCheckin(req.Username, checkinReward)
+	span.End()
 	switch {
 	case errors.Is(err, ErrUnknownUser):
 		a.obs.Business(ctx, rec.at("completed", Rejected, "unknown_user", MoneyNone))
@@ -186,7 +203,7 @@ func (a *API) checkinClaim(w http.ResponseWriter, r *http.Request) {
 			slog.Int64("reward", checkinReward)))
 		a.obs.Legacy("checkin ok")
 		// Creating the reward statement triggers a downstream consumer.
-		a.statements <- statementEvent{traceID: traceID(ctx), username: req.Username}
+		a.statements <- statementEvent{span: trace.SpanContextFromContext(ctx), username: req.Username}
 		reply(w, ctx, http.StatusOK, "รับรางวัลเช็คอินสำเร็จ")
 	}
 }
@@ -196,10 +213,15 @@ func (a *API) checkinClaim(w http.ResponseWriter, r *http.Request) {
 func (a *API) consumeStatements() {
 	for ev := range a.statements {
 		time.Sleep(a.consumerDelay)
-		ctx := withTrace(context.Background(), ev.traceID)
+		parent := trace.ContextWithRemoteSpanContext(context.Background(), ev.span)
+		ctx, span := tracer.Start(parent, "statement-consumer refresh_stack", trace.WithSpanKind(trace.SpanKindConsumer))
 		start := time.Now()
+		_, read1 := tracer.Start(ctx, "replica.read stack")
 		read := a.store.ReadStackSecondary(ev.username)
+		read1.End()
+		_, write1 := tracer.Start(ctx, "primary.write stack")
 		previous := a.store.SetStack(ev.username, read)
+		write1.End()
 		rec := Record{Operation: "checkin_stack", Username: ev.username, Start: start}
 		a.obs.Business(ctx, rec.at("written", Accepted, "", MoneyNone,
 			slog.String("component", "statement-consumer"),
@@ -207,6 +229,7 @@ func (a *API) consumeStatements() {
 			slog.Int("stack_read", read),
 			slog.Int("stack_primary_before", previous),
 			slog.Int("stack_written", read)))
+		span.End()
 	}
 }
 

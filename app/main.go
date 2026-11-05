@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 func main() {
 	role := env("ROLE", "api")
 	obs := newObserver(env("OBSERVE_MODE", "business"))
+	defer setupTracing(env("SERVICE_NAME", "demo-"+role), obs.business)(context.Background())
 	store := newStore(50, ms("REPLICA_LAG_MS", 500))
 
 	mux := http.NewServeMux()
