@@ -27,9 +27,10 @@ go install github.com/grafana/mcp-grafana/cmd/mcp-grafana@latest
 git clone https://github.com/saineehpk/observe-workshop.git
 cd observe-workshop
 make start       # เปิด stack + ต่อ Claude (MCP grafana-local) + เติมข้อมูล 3 นาทีเบื้องหลัง
-make scenarios   # รัน scenario ทั้ง 4 แล้วจด trace_id
 claude           # เปิด Claude Code ในโฟลเดอร์นี้ แล้วเริ่มถามได้เลย
 ```
+
+อัปเดตเป็นเวอร์ชันล่าสุด: `git pull && make start` (build ใหม่ ต่อ MCP ใหม่ และเติมข้อมูลให้)
 
 ไม่ต้องตั้งค่าอะไร `make start` พิมพ์ URL ออกมาให้ ปกติคือ:
 

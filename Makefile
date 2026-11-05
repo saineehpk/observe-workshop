@@ -10,7 +10,10 @@ start:           ## clone มาแล้วรันคำสั่งนี้
 	@$(MAKE) --no-print-directory up
 	@$(MAKE) --no-print-directory mcp
 	@$(MAKE) --no-print-directory seed-fast
-	@echo; echo "พร้อมแล้ว · seed ใช้เวลาประมาณ 3 นาที (make seed-status) · จากนั้น make scenarios แล้วพิมพ์ claude"
+	@. ./.env; echo; echo "พร้อมแล้ว"; \
+	echo "  Grafana  http://localhost:$$GRAFANA_PORT  (Explore → Loki / Tempo)"; \
+	echo "  ข้อมูล    กำลังเติมเบื้องหลังประมาณ 3 นาที · ดูความคืบหน้า: make seed-status"; \
+	echo "  ต่อไป    พิมพ์ claude ในโฟลเดอร์นี้ หรือเปิดแบบฝึกใน docs/exercises.md"
 
 env:             ## เลือกพอร์ตว่างใหม่ลง .env (ปกติ make up ทำให้เอง) เช่น make env GRAFANA_PORT=3400
 	@./scripts/env.sh
