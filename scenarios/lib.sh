@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Shared helpers for scenarios. API defaults to the local stack.
 set -euo pipefail
-API="${API:-http://localhost:8080}"
-WORKER="${WORKER:-http://localhost:8081}"
+# ports come from .env (written by make up / make env) so scripts also work when run directly
+_env="$(dirname "${BASH_SOURCE[0]}")/../.env"
+if [[ -f "$_env" ]]; then set -a; source "$_env"; set +a; fi
+API="${API:-http://localhost:${API_PORT:-8080}}"
+WORKER="${WORKER:-http://localhost:${WORKER_PORT:-8081}}"
 
 # post <path> <json> : prints "HTTP <code> | <message> | trace_id=<id>"
 post() {

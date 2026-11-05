@@ -24,16 +24,21 @@ go install github.com/grafana/mcp-grafana/cmd/mcp-grafana@latest
 ## เริ่มใช้งาน
 
 ```bash
-make up          # เปิด app + Grafana + Loki + Prometheus + Alloy
-make mcp         # ต่อ Claude Code เข้ากับ Grafana ในเครื่อง (ชื่อ grafana-local)
-make scenarios   # รัน scenario ทั้ง 4
+git clone https://github.com/saineehpk/observe-workshop.git
+cd observe-workshop
+make start       # เปิด stack + ต่อ Claude (MCP grafana-local) + เติมข้อมูล 3 นาทีเบื้องหลัง
+make scenarios   # รัน scenario ทั้ง 4 แล้วจด trace_id
 claude           # เปิด Claude Code ในโฟลเดอร์นี้ แล้วเริ่มถามได้เลย
 ```
 
+ไม่ต้องตั้งค่าอะไร `make start` พิมพ์ URL ออกมาให้ ปกติคือ:
+
 - Grafana: http://localhost:3000 ไม่ต้อง login ก็เปิด **Explore** ได้ (admin / admin ถ้าต้องตั้งค่า)
 - API: http://localhost:8080 · Worker: http://localhost:8081 · Prometheus: http://localhost:9090
-- ถ้าพอร์ต 3000 ถูกใช้อยู่ (เช่นมี Grafana ตัวอื่นเปิดอยู่) ให้ `export GRAFANA_PORT=3300` ก่อนรันทุกคำสั่ง
-  `make up`, `make mcp`, `make seed` จะใช้พอร์ตนี้เอง แล้วเปิด http://localhost:3300
+
+ถ้าพอร์ตไหนมีโปรแกรมอื่นใช้อยู่ จะเลือกพอร์ตว่างให้เอง (เช่น Grafana 3000 → 3300) แล้วเก็บไว้ใน `.env`
+ทุกคำสั่ง `make` และ scenario ใช้ค่าเดียวกัน ดูค่าที่ได้ด้วย `cat .env` (ความหมายของแต่ละค่าอยู่ใน `.env.example`)
+แต่ละโฟลเดอร์เป็น docker project แยกกัน clone ไว้สองที่ก็รันพร้อมกันได้ log ไม่ปนกัน
 
 ใน Explore ของ Loki ทุกบรรทัดที่มี `trace_id` กดขยายแล้วจะมีลิงก์ **ดู log ทั้ง trace** เปิด log ของทุก service ใน trace นั้น
 
@@ -106,9 +111,9 @@ sum by (operation, outcome, error_class, money_effect) (rate(workshop_business_r
 
 | อาการ | วิธีแก้ |
 |---|---|
-| `port is already allocated` | ดูว่าพอร์ตไหนชน ถ้าเป็น 3000 ให้ `export GRAFANA_PORT=3300` ถ้าเป็นพอร์ตอื่นให้ปิดตัวที่ใช้อยู่ แล้ว **`make stop` ก่อน `make up` ใหม่** ไม่งั้น container ที่ค้างจากรอบที่พังอาจไม่ได้ต่อ network (เช่น Grafana ขึ้น 502 ตอน query Prometheus) |
+| `port is already allocated` | มีโปรแกรมเปิดพอร์ตนั้นหลังจากที่ `.env` ถูกสร้างไปแล้ว ให้ `make stop` → `make env` (เลือกพอร์ตว่างใหม่) → `make up` → `make mcp` ต้อง `make stop` ก่อนเสมอ ไม่งั้น container ที่ค้างจากรอบที่พังอาจไม่ได้ต่อ network |
 | Prometheus ไม่มีข้อมูล หรือ Grafana ขึ้น 502 | `docker compose up -d --force-recreate prometheus` |
-| `make seed` บอกว่า could not write annotation | Grafana ไม่ได้อยู่ที่พอร์ตที่สคริปต์ใช้ ตั้ง `GRAFANA_PORT` ให้ตรง |
+| `make seed` บอกว่า could not write annotation | Grafana ไม่ได้อยู่ที่พอร์ตใน `.env` ดูด้วย `cat .env` ถ้าไม่ตรงให้ `make stop` → `make env` → `make up` |
 | ยอดเงินเพี้ยนจากรอบก่อน | `make reset` |
 
 ## ปิด
@@ -117,3 +122,13 @@ sum by (operation, outcome, error_class, money_effect) (rate(workshop_business_r
 make stop    # ปิด เก็บข้อมูลไว้
 make down    # ปิด และลบ log/metric ทั้งหมด
 ```
+
+### ล้างทุกอย่างหลังจบ workshop (หรือเริ่มใหม่จากศูนย์)
+
+```bash
+make clean                       # หยุด seed, ลบ container/network/volume/image ของ api/worker, MCP grafana-local และ .env
+cd .. && rm -rf observe-workshop # ลบโฟลเดอร์ repo (ถ้าไม่ใช้แล้ว)
+```
+
+เช็คว่าไม่เหลืออะไรค้าง: `docker ps -a --filter name=observe-workshop` และ `docker volume ls --filter name=observe-workshop` ต้องว่าง
+(ชื่อ project = ชื่อโฟลเดอร์ ถ้า clone ไว้ชื่ออื่นให้เปลี่ยนตาม)

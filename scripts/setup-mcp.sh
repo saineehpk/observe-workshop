@@ -2,6 +2,8 @@
 # Create a Viewer service account in the local Grafana and register it as the
 # "grafana-local" MCP server for Claude Code, scoped to this directory.
 set -euo pipefail
+cd "$(dirname "$0")/.."
+if [[ -f .env ]]; then set -a; source .env; set +a; fi   # GRAFANA_PORT picked by make up
 GRAFANA="${GRAFANA:-http://localhost:${GRAFANA_PORT:-3000}}"
 AUTH="admin:admin"
 

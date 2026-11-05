@@ -1,5 +1,3 @@
-name: observe-workshop
-
 x-app: &app
   build: ./app
   restart: unless-stopped
@@ -15,7 +13,7 @@ services:
       RPC_TIMEOUT_MS: "2000"
       REPLICA_LAG_MS: "500"
       CONSUMER_DELAY_MS: "20"
-    ports: ["8080:8080"]
+    ports: ["${API_PORT:-8080}:8080"]
     labels:
       workshop.observe: "true"
       service_name: demo-customer-api
@@ -27,7 +25,7 @@ services:
       ROLE: worker
       PORT: "8081"
       OBSERVE_MODE: ${OBSERVE_MODE:-business}
-    ports: ["8081:8081"]
+    ports: ["${WORKER_PORT:-8081}:8081"]
     labels:
       workshop.observe: "true"
       service_name: demo-withdraw-worker
@@ -44,11 +42,14 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
-    ports: ["9090:9090"]
+    ports: ["${PROMETHEUS_PORT:-9090}:9090"]
 
   alloy:
     image: grafana/alloy:v1.4.3
     command: run /etc/alloy/config.alloy
+    environment:
+      # only ship logs of this compose project, so two copies on one machine do not mix
+      COMPOSE_PROJECT: ${COMPOSE_PROJECT_NAME:-}
     volumes:
       - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro

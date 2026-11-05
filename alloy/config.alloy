@@ -20,9 +20,20 @@ discovery.relabel "workshop" {
   }
 }
 
+// Keep only containers of this compose project (COMPOSE_PROJECT, set by docker-compose.yml),
+// so two copies of the workshop on one machine do not ship each other's logs.
+discovery.relabel "this_project" {
+  targets = discovery.docker.workshop.targets
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    regex         = coalesce(sys.env("COMPOSE_PROJECT"), ".+")
+    action        = "keep"
+  }
+}
+
 loki.source.docker "workshop" {
   host          = "unix:///var/run/docker.sock"
-  targets       = discovery.docker.workshop.targets
+  targets       = discovery.relabel.this_project.output
   relabel_rules = discovery.relabel.workshop.rules
   forward_to    = [loki.write.local.receiver]
 }

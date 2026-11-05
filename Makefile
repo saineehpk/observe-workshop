@@ -1,16 +1,36 @@
-.PHONY: help up stop down reset legacy business mcp s01 s02 s03 s04 scenarios traffic spike seed seed-fast seed-status seed-stop logs
+.PHONY: help start env up stop down clean reset legacy business mcp s01 s02 s03 s04 scenarios traffic spike seed seed-fast seed-status seed-stop logs
+
+# .env (สร้างอัตโนมัติตอน make up) เก็บพอร์ตที่ว่างและชื่อ project ของโฟลเดอร์นี้
+# docker compose อ่านไฟล์นี้เอง สคริปต์ใน scenarios/ และ scripts/ ก็อ่านเอง make จึงไม่ต้อง export อะไร
 
 help:            ## แสดงคำสั่งทั้งหมด
-	@grep -E '^[a-z0-9-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
+	@grep -E '^[a-z0-9-]+:.*##' $(firstword $(MAKEFILE_LIST)) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
 
-up:              ## เปิด stack ทั้งหมด (โหมด business)
+start:           ## clone มาแล้วรันคำสั่งนี้คำสั่งเดียว: up + mcp + seed-fast (เบื้องหลัง)
+	@$(MAKE) --no-print-directory up
+	@$(MAKE) --no-print-directory mcp
+	@$(MAKE) --no-print-directory seed-fast
+	@echo; echo "พร้อมแล้ว · seed ใช้เวลาประมาณ 3 นาที (make seed-status) · จากนั้น make scenarios แล้วพิมพ์ claude"
+
+env:             ## เลือกพอร์ตว่างใหม่ลง .env (ปกติ make up ทำให้เอง) เช่น make env GRAFANA_PORT=3400
+	@./scripts/env.sh
+
+up:              ## เปิด stack ทั้งหมด (โหมด business) พอร์ตไหนไม่ว่างจะเลือกพอร์ตอื่นให้เอง
+	@./scripts/env.sh --if-missing
 	docker compose up -d --build
+	@. ./.env; echo "Grafana http://localhost:$$GRAFANA_PORT · API http://localhost:$$API_PORT · Worker http://localhost:$$WORKER_PORT · Prometheus http://localhost:$$PROMETHEUS_PORT"
 
 stop:            ## ปิด stack แต่เก็บ log/metric ไว้
 	docker compose down
 
 down:            ## ปิด stack และลบ log/metric ทั้งหมด
 	docker compose down -v
+
+clean:           ## ล้างทุกอย่าง: seed, container, volume, image, MCP และ .env
+	-@$(MAKE) --no-print-directory seed-stop
+	docker compose down -v --rmi local
+	-claude mcp remove grafana-local -s local
+	rm -f .env .seed.log .seed.pid
 
 reset:           ## รีสตาร์ต app ให้ยอดเงินกลับค่าเริ่มต้น
 	docker compose restart api worker
