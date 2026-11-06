@@ -1,4 +1,4 @@
-.PHONY: help start env up stop down clean reset legacy business mcp s01 s02 s03 s04 scenarios traffic spike seed seed-fast seed-status seed-stop ex1 ex1-business ex2 ex3 ex4 hint logs
+.PHONY: help start env up stop down clean reset legacy business mcp s01 s02 s03 s04 scenarios traffic spike seed seed-fast seed-status seed-stop ex1 ex2 ex3 hint logs
 
 # .env (สร้างอัตโนมัติตอน make up) เก็บพอร์ตที่ว่างและชื่อ project ของโฟลเดอร์นี้
 # docker compose อ่านไฟล์นี้เอง สคริปต์ใน scenarios/ และ scripts/ ก็อ่านเอง make จึงไม่ต้อง export อะไร
@@ -60,16 +60,12 @@ s04:             ## scenario 04 ถอนช้าจน timeout
 	./scenarios/04-rpc-timeout-unknown.sh
 scenarios: s01 s02 s03 s04 ## รันทุก scenario
 
-ex1:             ## แบบฝึกข้อ 1 (legacy): ตั้งโหมด + คืนยอดเงิน + จำลองเคส แล้วพิมพ์ ticket
+ex1:             ## แบบฝึกข้อ 1 (web-alpha): ย้ายกระเป๋า "เกิดข้อผิดพลาด" แล้วพิมพ์ ticket
 	@./scenarios/ex.sh ex1
-ex1-business:    ## แบบฝึกข้อ 1 ช่วงหลัง: เคสเดิมในโหมด business แล้วพิมพ์ ticket
-	@./scenarios/ex.sh ex1-business
-ex2:             ## แบบฝึกข้อ 2 (web-alpha): ย้ายกระเป๋า "เกิดข้อผิดพลาด" แล้วพิมพ์ ticket
+ex2:             ## แบบฝึกข้อ 2 (web-charlie): เช็คอินรับซ้ำ แล้วพิมพ์ ticket
 	@./scenarios/ex.sh ex2
-ex3:             ## แบบฝึกข้อ 3 (web-charlie): เช็คอินรับซ้ำ แล้วพิมพ์ ticket
+ex3:             ## แบบฝึกข้อ 3 (web-bravo): ถอนแล้ว "กำลังดำเนินการ" แล้วพิมพ์ ticket
 	@./scenarios/ex.sh ex3
-ex4:             ## แบบฝึกข้อ 4 (web-bravo): ถอนแล้ว "กำลังดำเนินการ" แล้วพิมพ์ ticket
-	@./scenarios/ex.sh ex4
 hint:            ## ดู trace_id + prompt ของแบบฝึกล่าสุด (เมื่อหาเองไม่เจอ)
 	@./scenarios/ex.sh hint
 

@@ -85,7 +85,7 @@ curl -s -H 'X-Site: web-bravo' -H 'Content-Type: application/json' \
 
 ## แบบฝึก
 
-`make ex1` … `make ex4` คืนยอดเงิน จำลองเคส แล้วพิมพ์ **ticket** (เว็บ + username + เวลา + อาการ) พร้อม prompt สำหรับ Claude
+`make ex1` … `make ex3` คืนยอดเงิน จำลองเคส แล้วพิมพ์ **ticket** (เว็บ + username + เวลา + อาการ) พร้อม prompt สำหรับ Claude
 หาเคสไม่เจอใช้ `make hint` รายละเอียดโจทย์อยู่ใน [docs/exercises.md](docs/exercises.md)
 
 scenario แบบไม่คืนยอดเงินยังใช้ได้: `make s01` … `make s04` (พิมพ์ trace_id ออกมาตรงๆ)
@@ -113,7 +113,7 @@ log และ metric เก็บใน Docker volume: `make stop` ปิดแ�
 | legacy | `make legacy` | `withdraw rpc error: context deadline exceeded` ไม่มี trace_id ไม่มีโครงสร้าง |
 | business | `make business` | JSON record ตาม [docs/record-contract.md](docs/record-contract.md) |
 
-สลับโหมดแล้วรัน scenario เดิม (หรือใช้ `make ex1` กับ `make ex1-business`) จะเห็นว่าแต่ละโหมดตอบ 4 ข้อข้างบนได้ต่างกันแค่ไหน
+สลับโหมดแล้วรัน scenario เดิม จะเห็นว่าแต่ละโหมดตอบ 4 ข้อข้างบนได้ต่างกันแค่ไหน (แบบฝึกใช้โหมด business อย่างเดียว `make exN` สลับกลับให้เอง)
 
 ## เอกสาร
 
