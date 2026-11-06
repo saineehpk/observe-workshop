@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# One command per exercise:  make ex1 | ex1-business | ex2 | ex3 | ex4   then   make hint
-# Sets the log mode, resets balances, plays the case on one website, and prints the
+# One command per exercise:  make ex1 | ex2 | ex3   then   make hint
+# Switches to business records if needed, resets balances, plays the case on one website, and prints the
 # ticket the way Support sends it: website + username + time + symptom, no trace_id.
 # Another player on the same website does the same thing around the same time, like in production.
 # `make hint` prints the trace_id and a ready-to-paste prompt for the last exercise.
@@ -8,7 +8,7 @@
 source "$(dirname "$0")/lib.sh"
 here="$(cd "$(dirname "$0")" && pwd)"
 cd "$here/.."
-ex="${1:?usage: ex.sh ex1|ex1-business|ex2|ex3|ex4|hint}"
+ex="${1:?usage: ex.sh ex1|ex2|ex3|hint}"
 state_dir=.ex
 
 grafana_loki() {
@@ -17,16 +17,8 @@ grafana_loki() {
 }
 
 if [[ "$ex" == "hint" ]]; then
-  [[ -f $state_dir/last ]] || { echo "ยังไม่ได้รันแบบฝึก ลอง make ex2 ก่อน" >&2; exit 1; }
+  [[ -f $state_dir/last ]] || { echo "ยังไม่ได้รันแบบฝึก ลอง make ex1 ก่อน" >&2; exit 1; }
   source $state_dir/last
-  if [[ "$EX" == "ex1" ]]; then
-    cat <<EOF
-[hint ex1] โหมด legacy ไม่มี trace_id ใน log ให้ดูทุกบรรทัดของเว็บนั้นในช่วงเวลาที่ลูกค้าแจ้ง
-  Grafana → Explore → Loki:  {namespace="$TSITE"}
-  ลองหาว่าบรรทัดไหนเป็นของ $TUSER และเงินขยับหรือยัง แล้วรัน make ex1-business
-EOF
-    exit 0
-  fi
   cat <<EOF
 [hint $EX] trace_id: $TID   (เว็บ $TSITE · $TUSER · $TTIME)
   หาเองได้ด้วย:  {namespace="$TSITE", service_name="demo-customer-api"} | json | username="$TUSER"
@@ -49,25 +41,25 @@ fi
 # case per exercise: website, player, the scenario, which response is the case, the symptom,
 # and a normal request by another player on the same website at the same time (the decoy)
 case "$ex" in
-  ex1|ex1-business|ex4)
-    site=web-bravo; user=bravo0006; script=04-rpc-timeout-unknown.sh; pick='/withdraw '
-    symptom='ถอน 200 แล้วขึ้น "รายการกำลังดำเนินการ กรุณาตรวจสอบประวัติการถอน" ไม่แน่ใจว่าเงินถูกตัดหรือยัง'
-    decoy=(/withdraw '{"username":"bravo0007","amount":200,"delay_ms":150}') ;;
-  ex2)
+  ex1)
     site=web-alpha; user=alpha0004; script=02-duplicate-same-minute.sh; pick='HTTP 500'
     symptom='ย้ายยอด 50 จากกระเป๋าเข้าเครดิต ครั้งที่สองขึ้น "เกิดข้อผิดพลาด กรุณาลองใหม่"'
     decoy=(/pocket/exchange '{"username":"alpha0008","amount":50}') ;;
-  ex3)
+  ex2)
     site=web-charlie; user=charlie0005; script=03-stale-read-overwrite.sh; pick='/checkin/claim'
     symptom='(ทีมบัญชีแจ้ง) ผู้เล่นรับรางวัลเช็คอินได้ 2 ครั้งในวันเดียว'
     decoy=(/checkin/claim '{"username":"charlie0009"}') ;;
+  ex3)
+    site=web-bravo; user=bravo0006; script=04-rpc-timeout-unknown.sh; pick='/withdraw '
+    symptom='ถอน 200 แล้วขึ้น "รายการกำลังดำเนินการ กรุณาตรวจสอบประวัติการถอน" ไม่แน่ใจว่าเงินถูกตัดหรือยัง'
+    decoy=(/withdraw '{"username":"bravo0007","amount":200,"delay_ms":150}') ;;
   *) echo "unknown exercise $ex" >&2; exit 1 ;;
 esac
 
-mode=business; [[ "$ex" == "ex1" ]] && mode=legacy
+mode=business
 apps=(api-alpha worker-alpha api-bravo worker-bravo api-charlie worker-charlie)
 current="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$(docker compose ps -q api-alpha)" 2>/dev/null | sed -n 's/^OBSERVE_MODE=//p')"
-echo "[$ex] โหมด log: $mode · คืนยอดเงินเริ่มต้นทุกเว็บ"
+echo "[$ex] คืนยอดเงินเริ่มต้นทุกเว็บ"
 if [[ "$current" == "$mode" ]]; then
   # same mode: restart keeps the containers, so Alloy keeps every log line of earlier runs
   docker compose restart "${apps[@]}" >/dev/null 2>&1
@@ -78,8 +70,8 @@ for s in "${SITES[@]}"; do
   for _ in $(seq 1 60); do curl -sf -H "X-Site: $s" "$API/state/${s#web-}0001" >/dev/null && break; sleep 0.5; done
 done
 
-# scenario 02 needs both requests inside the same minute
-if [[ "$ex" == "ex2" ]] && (( 10#$(date +%S) >= 50 )); then
+# the pocket case needs both requests inside the same minute
+if [[ "$ex" == "ex1" ]] && (( 10#$(date +%S) >= 50 )); then
   echo "[$ex] รอขึ้นนาทีใหม่ $((60 - 10#$(date +%S))) วินาที (เคสนี้ต้องเกิดภายในนาทีเดียวกัน)"
   sleep $((60 - 10#$(date +%S)))
 fi
@@ -94,7 +86,6 @@ printf 'EX=%s\nTSITE=%s\nTUSER=%s\nTTIME=%s\nTID=%s\n' "$ex" "$site" "$user" "$w
 
 # wait until this run's logs are in Loki, so searching right away finds them
 want="{namespace=\"$site\"} |= \"$tid\""
-[[ "$ex" == "ex1" ]] && want="{namespace=\"$site\"} |= \"withdraw rpc error\""
 printf '[%s] รอ log เข้า Loki' "$ex"
 for _ in $(seq 1 40); do
   grafana_loki "$want" | jq -e '.data.result | length > 0' >/dev/null 2>&1 && break
@@ -120,6 +111,3 @@ cat <<EOF
 
   โจทย์: docs/exercises.md ข้อ ${ex:2:1} · หาไม่เจอ: make hint
 EOF
-if [[ "$ex" == "ex1" ]]; then
-  echo "  ตอนนี้เป็นโหมด legacy (log แบบเก่า) ตอบเสร็จแล้วรัน make ex1-business เพื่อดูเคสเดียวกันแบบมี business record"
-fi
