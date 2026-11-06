@@ -28,6 +28,6 @@ bounded `error_class`, never rename an existing `msg`, never put usernames or id
   the case from those, do not jump to the answer. `.ex/` holds the last run: do not read it unless the learner asks for a hint.
 - Exercises in [docs/exercises.md](docs/exercises.md) are for the learner to solve. Give hints
   and evidence; do not edit `app/` unless the learner asks you to.
-- Grafana annotations tagged `spike` are the answer key for exercise 5. Do not read them
-  unless the learner asks to check their answer.
+- Grafana annotations tagged `spike` mark when the seed slowed web-bravo down. If a learner looks for
+  unusual periods in the metrics, let them find it from the data first; mention the annotation only when asked.
 - App code: `app/` (Go, stdlib + prometheus client). Rebuild with `docker compose up -d --build api worker`.

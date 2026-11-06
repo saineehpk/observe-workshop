@@ -102,7 +102,7 @@ scenario แบบไม่คืนยอดเงินยังใช้ไ�
 traffic มีเคสปนอยู่แล้ว: ยอดไม่พอ (`insufficient_*`), user ที่ไม่มีอยู่จริง, ย้ายกระเป๋าซ้ำในนาทีเดียว และเช็คอินที่ถูกเขียนทับ
 ปรับได้ด้วย env: `TIMEOUT_PCT`, `RATE_SLEEP`, `NORMAL_SECONDS`, `SPIKE_SECONDS`, `SPIKE_TIMEOUT_PCT`
 
-`make seed` และ `make seed-fast` เขียน annotation tag `spike` ไว้ใน Grafana บอกช่วงที่ปลายทางช้า ใช้เป็นเฉลยของแบบฝึกข้อ 5
+`make seed` และ `make seed-fast` เขียน annotation tag `spike` ไว้ใน Grafana บอกช่วงที่ปลายทางช้า
 
 log และ metric เก็บใน Docker volume: `make stop` ปิดแล้วข้อมูลยังอยู่ ส่วน `make down` ลบทิ้งหมด
 
